@@ -1,0 +1,18 @@
+LOCAL_PATH := $(call my-dir)
+I2PD_DEPS_ROOT := $(abspath $(LOCAL_PATH))
+include $(LOCAL_PATH)/deps.mk
+
+include $(CLEAR_VARS)
+LOCAL_PATH := $(I2PD_DEPS_ROOT)
+LOCAL_MODULE := i2pd
+LOCAL_CPP_FEATURES := rtti exceptions
+LOCAL_C_INCLUDES += $(I2PD_C_INCLUDES)
+LOCAL_STATIC_LIBRARIES := $(I2PD_STATIC_LIBRARIES)
+LOCAL_LDLIBS := -lz
+
+LOCAL_SRC_FILES := \
+	$(I2PD_SRC_FILES) \
+	$(DAEMON_SRC_PATH)/UnixDaemon.cpp \
+	$(DAEMON_SRC_PATH)/i2pd.cpp
+
+include $(BUILD_EXECUTABLE)

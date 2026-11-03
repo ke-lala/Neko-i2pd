@@ -1,0 +1,108 @@
+package org.purplei2p.i2pd.service
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.core.content.edit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** When a partial wake lock is held while the router runs, so it keeps working in deep sleep. */
+enum class KeepAwake { OFF, ALWAYS, WHILE_CHARGING }
+
+/** Settings of the application itself, not of i2pd (those live in i2pd.conf). */
+data class AppSettings(
+    val autostartOnBoot: Boolean = false,
+    val autoRestart: Boolean = true,
+    val gracefulTimeoutMinutes: Int = 10,
+    val keepAwake: KeepAwake = KeepAwake.OFF,
+    val theme: ThemeMode = ThemeMode.SYSTEM,
+    /** FLAG_SECURE on the app window: no screenshots, screen recording or thumbnail in recents. */
+    val secureScreen: Boolean = true,
+    /** The hint about holding Stop to stop at once was shown. */
+    val stopHintShown: Boolean = false,
+    /** The autostart screen of the firmware (see OemAutostart) was opened; whether it was allowed is unknown. */
+    val oemAutostartOpened: Boolean = false,
+    /** The first-run screen was shown. */
+    val onboardingDone: Boolean = false,
+    /** Route selected Android applications through the local i2pd SOCKS proxy. */
+    val vpnEnabled: Boolean = false,
+    /** Route all apps except i2pd itself; false means use the explicit allow-list below. */
+    val vpnGlobal: Boolean = false,
+    /** Android package names routed through the VPN in per-app mode. */
+    val vpnApps: Set<String> = emptySet(),
+)
+
+/** Synchronous SharedPreferences storage: boot receiver and service need the values at once. */
+class AppSettingsStore private constructor(private val prefs: SharedPreferences) {
+
+    private val _settings = MutableStateFlow(read())
+    val settings: StateFlow<AppSettings> = _settings.asStateFlow()
+
+    fun update(transform: (AppSettings) -> AppSettings) {
+        val updated = transform(_settings.value)
+        prefs.edit {
+            putBoolean(KEY_AUTOSTART, updated.autostartOnBoot)
+            putBoolean(KEY_AUTO_RESTART, updated.autoRestart)
+            putInt(KEY_GRACEFUL_TIMEOUT, updated.gracefulTimeoutMinutes)
+            putString(KEY_KEEP_AWAKE_MODE, updated.keepAwake.name)
+            remove(KEY_KEEP_AWAKE)
+            putString(KEY_THEME, updated.theme.name)
+            putBoolean(KEY_SECURE_SCREEN, updated.secureScreen)
+            putBoolean(KEY_STOP_HINT_SHOWN, updated.stopHintShown)
+            putBoolean(KEY_OEM_AUTOSTART_OPENED, updated.oemAutostartOpened)
+            putBoolean(KEY_ONBOARDING_DONE, updated.onboardingDone)
+            putBoolean(KEY_VPN_ENABLED, updated.vpnEnabled)
+            putBoolean(KEY_VPN_GLOBAL, updated.vpnGlobal)
+            putStringSet(KEY_VPN_APPS, updated.vpnApps.toSet())
+        }
+        _settings.value = updated
+    }
+
+    private fun read() = AppSettings(
+        autostartOnBoot = prefs.getBoolean(KEY_AUTOSTART, false),
+        autoRestart = prefs.getBoolean(KEY_AUTO_RESTART, true),
+        gracefulTimeoutMinutes = prefs.getInt(KEY_GRACEFUL_TIMEOUT, 10),
+        keepAwake = KeepAwake.entries.firstOrNull { it.name == prefs.getString(KEY_KEEP_AWAKE_MODE, null) }
+            // The switch of earlier builds
+            ?: if (prefs.getBoolean(KEY_KEEP_AWAKE, false)) KeepAwake.ALWAYS else KeepAwake.OFF,
+        theme = ThemeMode.entries.firstOrNull { it.name == prefs.getString(KEY_THEME, null) } ?: ThemeMode.SYSTEM,
+        secureScreen = prefs.getBoolean(KEY_SECURE_SCREEN, true),
+        stopHintShown = prefs.getBoolean(KEY_STOP_HINT_SHOWN, false),
+        oemAutostartOpened = prefs.getBoolean(KEY_OEM_AUTOSTART_OPENED, false),
+        onboardingDone = prefs.getBoolean(KEY_ONBOARDING_DONE, false),
+        vpnEnabled = prefs.getBoolean(KEY_VPN_ENABLED, false),
+        vpnGlobal = prefs.getBoolean(KEY_VPN_GLOBAL, false),
+        vpnApps = (prefs.getStringSet(KEY_VPN_APPS, emptySet()) ?: emptySet()).toSet(),
+    )
+
+    companion object {
+        private const val KEY_AUTOSTART = "autostart_on_boot"
+        private const val KEY_AUTO_RESTART = "auto_restart"
+        private const val KEY_GRACEFUL_TIMEOUT = "graceful_timeout_minutes"
+        private const val KEY_KEEP_AWAKE = "keep_awake"
+        private const val KEY_KEEP_AWAKE_MODE = "keep_awake_mode"
+        private const val KEY_THEME = "theme"
+        private const val KEY_SECURE_SCREEN = "secure_screen"
+        private const val KEY_STOP_HINT_SHOWN = "stop_hint_shown"
+        private const val KEY_OEM_AUTOSTART_OPENED = "oem_autostart_opened"
+        private const val KEY_ONBOARDING_DONE = "onboarding_done"
+        private const val KEY_VPN_ENABLED = "vpn_enabled"
+        private const val KEY_VPN_GLOBAL = "vpn_global"
+        private const val KEY_VPN_APPS = "vpn_apps"
+
+        val GRACEFUL_TIMEOUT_CHOICES = listOf(1, 5, 10, 15, 30)
+
+        @Volatile
+        private var instance: AppSettingsStore? = null
+
+        fun get(context: Context): AppSettingsStore =
+            instance ?: synchronized(this) {
+                instance ?: AppSettingsStore(
+                    context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE),
+                ).also { instance = it }
+            }
+    }
+}

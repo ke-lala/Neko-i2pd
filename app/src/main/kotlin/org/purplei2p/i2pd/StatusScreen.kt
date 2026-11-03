@@ -1,0 +1,550 @@
+package org.purplei2p.i2pd
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
+import org.purplei2p.i2pd.LineCard as Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import org.purplei2p.i2pd.config.OptionGroup
+import org.purplei2p.i2pd.config.TunnelType
+import org.purplei2p.i2pd.daemon.api.ClientService
+import org.purplei2p.i2pd.service.Lifecycle
+import org.purplei2p.i2pd.service.RouterController
+import org.purplei2p.i2pd.service.RouterState
+import org.purplei2p.i2pd.service.RouterStateText
+import org.purplei2p.i2pd.service.TorrentsRpc
+import org.purplei2p.i2pd.service.R as ServiceR
+import org.purplei2p.i2pd.service.HistorySample
+
+@Composable
+fun StatusScreen(
+    checks: SystemChecks,
+    onOpenWebConsole: (String) -> Unit,
+    onOpenSettings: (String) -> Unit,
+    onOpenTunnels: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val state by RouterController.state(context).collectAsStateWithLifecycle()
+    var showDetails by remember { mutableStateOf(false) }
+    // Ticks for countdowns of graceful stop and automatic restart
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            delay(1000)
+            value = System.currentTimeMillis()
+        }
+    }
+
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        RouterController.start(context)
+    }
+    val start = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // The router works without the permission, the notification is just hidden
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            RouterController.start(context)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AppHeader()
+        if (checks.batteryOptimized) {
+            Banner(stringResource(R.string.banner_battery), stringResource(R.string.action_disable)) {
+                requestIgnoreBatteryOptimizations(context)
+            }
+        }
+        if (!checks.notificationsEnabled) {
+            Banner(stringResource(R.string.banner_notifications), stringResource(R.string.action_open_settings)) {
+                openNotificationSettings(context)
+            }
+        }
+        RestartBanner()
+        Controls(
+            state = state,
+            onStart = start,
+            onWebConsole = state.status?.webConsoleUrl?.takeIf(::isLoopbackUrl)?.let { url -> { onOpenWebConsole(url) } },
+        )
+        StatusDetails(state, now, showDetails) { showDetails = !showDetails }
+        val history by RouterController.history(context).collectAsStateWithLifecycle()
+        if (showDetails && state.status != null) {
+            ServiceChips(state.status!!.services, torrentsTunnels(), onOpenSettings, onOpenTunnels)
+            SpeedGraph(history)
+            TunnelsGraph(history)
+        }
+    }
+}
+
+/** Logo, name and motto of the project. */
+@Composable
+fun AppHeader(modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Text(
+            stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            stringResource(R.string.app_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 12.dp),
+            thickness = 0.75.dp,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun Banner(text: String, action: String, onAction: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = onAction, modifier = Modifier.align(Alignment.End)) { Text(action) }
+        }
+    }
+}
+
+/** What the first action of the panel does in the current state. */
+private enum class MainAction(val icon: Int, val label: Int) {
+    START(R.drawable.ic_action_start, ServiceR.string.action_start),
+    STOP(R.drawable.ic_action_stop, ServiceR.string.action_stop),
+    CANCEL_STOP(R.drawable.ic_action_start, ServiceR.string.action_cancel),
+}
+
+/**
+ * Start/Stop, Restart and Web console in one row. Stop is graceful; touching and holding it stops at
+ * once, which is explained by a hint the first time Stop shows up.
+ */
+@Composable
+private fun Controls(state: RouterState, onStart: () -> Unit, onWebConsole: (() -> Unit)?) {
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    val store = RouterController.settings(context)
+    val settings by store.settings.collectAsStateWithLifecycle()
+    val lifecycle = state.lifecycle
+    val autoRestarting = lifecycle is Lifecycle.Failed && state.autoRestartAt != null
+    val main = when {
+        lifecycle is Lifecycle.Draining -> MainAction.CANCEL_STOP
+        lifecycle == Lifecycle.Stopped && !state.isActive -> MainAction.START
+        lifecycle is Lifecycle.Failed && !autoRestarting -> MainAction.START
+        else -> MainAction.STOP
+    }
+    val stopNow = {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        RouterController.stopNow(context)
+        store.update { it.copy(stopHintShown = true) }
+    }
+    val onMain = when (main) {
+        MainAction.START -> onStart
+        MainAction.CANCEL_STOP -> ({ RouterController.cancelGraceful(context) })
+        // Graceful only for a running router: a starting one or a pending automatic restart stop at once
+        MainAction.STOP -> if (lifecycle == Lifecycle.Running) ({ RouterController.stopGraceful(context) }) else stopNow
+    }
+    val holdToStop = main != MainAction.START
+
+    // Stop shows up while the router is still starting, the hint waits for Running
+    val showHint = main == MainAction.STOP && lifecycle == Lifecycle.Running && !settings.stopHintShown
+    var mainBounds by remember { mutableStateOf<Rect?>(null) }
+
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ControlItem(
+                icon = main.icon,
+                label = stringResource(main.label),
+                highlighted = true,
+                onClick = onMain,
+                onLongClick = if (holdToStop) stopNow else null,
+                onLongClickLabel = stringResource(ServiceR.string.action_stop_now),
+                modifier = Modifier.weight(1f).onGloballyPositioned { mainBounds = it.boundsInWindow() },
+            )
+            ControlItem(
+                icon = R.drawable.ic_action_restart,
+                label = stringResource(ServiceR.string.action_restart),
+                enabled = lifecycle == Lifecycle.Running,
+                onClick = { RouterController.restart(context) },
+                modifier = Modifier.weight(1f),
+            )
+            ControlItem(
+                icon = R.drawable.ic_action_web_console,
+                label = stringResource(R.string.action_web_console),
+                enabled = onWebConsole != null,
+                onClick = { onWebConsole?.invoke() },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+    val bounds = mainBounds
+    if (showHint && bounds != null) {
+        CoachMark(
+            target = bounds,
+            text = stringResource(R.string.hint_stop_now, stringResource(ServiceR.string.action_stop)),
+            action = stringResource(R.string.hint_got_it),
+            onDismiss = { store.update { it.copy(stopHintShown = true) } },
+        )
+    }
+}
+
+@Composable
+private fun ControlItem(
+    icon: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    highlighted: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
+) {
+    val color = when {
+        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        highlighted -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val fill = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    Column(
+        modifier
+            .clip(MaterialTheme.shapes.small)
+            .background(fill)
+            .border(0.75.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.small)
+            .combinedClickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onLongClickLabel = onLongClickLabel,
+            )
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = color, modifier = Modifier.size(23.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = color, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun StatusDetails(state: RouterState, now: Long, showDetails: Boolean, onToggleDetails: () -> Unit) {
+    val context = LocalContext.current
+    fun speed(value: Long) = RouterStateText.speed(context, value)
+    fun bytes(value: Long) = RouterStateText.bytes(context, value)
+    val failed = state.lifecycle is Lifecycle.Failed && state.autoRestartAt == null
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = if (failed) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+        } else {
+            CardDefaults.cardColors()
+        },
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                RouterStateText.title(context, state),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+            if (state.lifecycle != Lifecycle.Running) {
+                RouterStateText.summary(context, state, now)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            }
+            if (failed) {
+                TextButton(onClick = { RouterController.dismiss(context) }, modifier = Modifier.align(Alignment.End)) {
+                    Text(stringResource(R.string.action_dismiss))
+                }
+            }
+            val status = state.status ?: return@Column
+            StatusRow(R.string.status_network, RouterStateText.network(context, status))
+            StatusRow(R.string.status_uptime, RouterStateText.duration(status.uptimeSeconds))
+            TextButton(onClick = onToggleDetails, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(if (showDetails) R.string.status_hide_details else R.string.status_show_details))
+            }
+            if (showDetails) {
+                StatusRow(
+                    R.string.status_speed,
+                    stringResource(R.string.status_speed_value, speed(status.bandwidthIn), speed(status.bandwidthOut), speed(status.bandwidthTransit)),
+                )
+                StatusRow(
+                    R.string.status_traffic,
+                    stringResource(R.string.status_traffic_value, bytes(status.totalReceived), bytes(status.totalSent), bytes(status.totalTransit)),
+                )
+                StatusRow(
+                    R.string.status_tunnels,
+                    stringResource(R.string.status_tunnels_value, status.tunnelsIn, status.tunnelsOut, status.tunnelsTransit, status.tunnelSuccessRate),
+                )
+                StatusRow(
+                    R.string.status_netdb,
+                    stringResource(R.string.status_netdb_value, status.routers, status.floodfills, status.leaseSets),
+                )
+                StatusRow(
+                    R.string.status_transit,
+                    stringResource(if (status.acceptsTransit) R.string.status_transit_accepted else R.string.status_transit_declined),
+                )
+            }
+        }
+    }
+}
+
+/** Client services of the running router; a chip opens the settings of its service. */
+/** Torrents tunnel [name] of an enabled tunnel file [path]; [rpc] is false without an RPC port. */
+private class TorrentsTunnel(val path: String, val name: String, val rpc: Boolean)
+
+/** Torrents tunnels of the enabled tunnel files, reloaded after every tunnels save. */
+@Composable
+private fun torrentsTunnels(): List<TorrentsTunnel> {
+    val tunnels = RouterController.tunnels(LocalContext.current)
+    val revision by tunnels.revision.collectAsStateWithLifecycle()
+    val list by produceState(emptyList<TorrentsTunnel>(), revision) {
+        value = runCatching { tunnels.load() }.getOrNull()?.files.orEmpty()
+            .filter { it.enabled }
+            .flatMap { file ->
+                file.tunnels.filter { it.type == TunnelType.TORRENTS }
+                    .map { TorrentsTunnel(file.path, it.name, TorrentsRpc.forTunnel(it) != null) }
+            }
+    }
+    return list
+}
+
+@Composable
+private fun ServiceChips(
+    services: Set<ClientService>,
+    torrents: List<TorrentsTunnel>,
+    onOpenSettings: (String) -> Unit,
+    onOpenTunnels: (String) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.status_services),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.semantics { heading() },
+        )
+        if (services.isEmpty() && torrents.isEmpty()) {
+            Text(stringResource(R.string.status_services_none), style = MaterialTheme.typography.bodyMedium)
+            return@Column
+        }
+        val chips: List<Pair<String, () -> Unit>> =
+            ClientService.entries.filter { it in services }.map { service ->
+                stringResource(service.label()) to { onOpenSettings(service.settingsTarget()) }
+            } + torrents.map { tunnel ->
+                // The client needs the RPC port, without it the tunnel form shows where to set it
+                val label = if (torrents.size == 1) stringResource(R.string.torrents_open)
+                else stringResource(R.string.torrents_open_named, tunnel.name)
+                label to {
+                    onOpenTunnels(
+                        if (tunnel.rpc) TunnelsTarget.torrents(tunnel.path, tunnel.name)
+                        else TunnelsTarget.edit(tunnel.path, tunnel.name),
+                    )
+                }
+            }
+        // Two equal columns; an odd last chip takes the whole row, so the grid has no gaps
+        chips.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (label, onClick) ->
+                    AssistChip(
+                        onClick = onClick,
+                        label = { Text(label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun ClientService.label(): Int = when (this) {
+    ClientService.HTTP_PROXY -> R.string.service_http_proxy
+    ClientService.SOCKS_PROXY -> R.string.service_socks_proxy
+    ClientService.SAM -> R.string.service_sam
+    ClientService.BOB -> R.string.service_bob
+    ClientService.I2CP -> R.string.service_i2cp
+    ClientService.WEB_CONSOLE -> R.string.service_web_console
+}
+
+private fun ClientService.settingsTarget(): String = when (this) {
+    ClientService.HTTP_PROXY -> SettingsTarget.group(OptionGroup.HTTP_PROXY)
+    ClientService.SOCKS_PROXY -> SettingsTarget.group(OptionGroup.SOCKS_PROXY)
+    ClientService.SAM -> SettingsTarget.group(OptionGroup.SAM)
+    ClientService.I2CP -> SettingsTarget.group(OptionGroup.I2CP)
+    ClientService.WEB_CONSOLE -> SettingsTarget.group(OptionGroup.WEB_CONSOLE)
+    ClientService.BOB -> SettingsTarget.group(OptionGroup.BOB)
+}
+
+@Composable
+private fun StatusRow(label: Int, value: String) {
+    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(0.4f))
+        Text(value, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.6f))
+    }
+}
+
+/** One line of a [HistoryGraph]. */
+private class Series(val color: Color, val label: String, val dash: FloatArray? = null, val value: (HistorySample) -> Long)
+
+/** Speeds of the last five minutes: download, upload and transit. */
+@Composable
+private fun SpeedGraph(samples: List<HistorySample>) {
+    val context = LocalContext.current
+    HistoryGraph(
+        title = stringResource(R.string.status_graph_title),
+        samples = samples,
+        // At least 1 KB/s, so an idle router does not show noise as full-height peaks
+        floor = 1024L,
+        format = { RouterStateText.speed(context, it) },
+        series = listOf(
+            Series(MaterialTheme.colorScheme.primary, stringResource(R.string.status_graph_in)) { it.inbound },
+            Series(MaterialTheme.colorScheme.tertiary, stringResource(R.string.status_graph_out), floatArrayOf(7f, 4f)) { it.outbound },
+            Series(MaterialTheme.colorScheme.secondary, stringResource(R.string.status_transit), floatArrayOf(2f, 4f)) { it.transit },
+        ),
+    )
+}
+
+/** Tunnel counts of the last five minutes: inbound, outbound and transit. */
+@Composable
+private fun TunnelsGraph(samples: List<HistorySample>) {
+    HistoryGraph(
+        title = stringResource(R.string.status_graph_tunnels_title),
+        samples = samples,
+        floor = 10L,
+        format = { it.toString() },
+        series = listOf(
+            Series(MaterialTheme.colorScheme.primary, stringResource(R.string.status_graph_tunnels_in)) { it.tunnelsIn.toLong() },
+            Series(MaterialTheme.colorScheme.tertiary, stringResource(R.string.status_graph_tunnels_out), floatArrayOf(7f, 4f)) { it.tunnelsOut.toLong() },
+            Series(MaterialTheme.colorScheme.secondary, stringResource(R.string.status_transit), floatArrayOf(2f, 4f)) { it.tunnelsTransit.toLong() },
+        ),
+    )
+}
+
+/** Lines of the last five minutes, the newest on the right, scaled to the largest value but at least [floor]. */
+@Composable
+private fun HistoryGraph(title: String, samples: List<HistorySample>, floor: Long, format: (Long) -> String, series: List<Series>) {
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    val max = maxOf(floor, samples.maxOfOrNull { sample -> series.maxOf { it.value(sample) } } ?: 0L)
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.status_graph_max, format(max)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Canvas(Modifier.fillMaxWidth().height(120.dp)) {
+                for (i in 0..3) {
+                    val y = size.height * i / 3
+                    drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 0.5.dp.toPx())
+                }
+                if (samples.size < 2) return@Canvas
+                val step = size.width / (HISTORY_SAMPLES - 1)
+                // Older samples start further left; until five minutes pass the graph fills from the right
+                val startX = size.width - step * (samples.size - 1)
+                // Drawn in reverse, so the first series is on top
+                series.asReversed().forEach { line ->
+                    val path = Path()
+                    samples.forEachIndexed { index, sample ->
+                        val x = startX + step * index
+                        val y = size.height * (1f - line.value(sample).toFloat() / max)
+                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    drawPath(path, line.color, style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Butt, join = StrokeJoin.Round, pathEffect = line.dash?.let { PathEffect.dashPathEffect(it.map { length -> length.dp.toPx() }.toFloatArray()) }))
+                }
+            }
+            val last = samples.lastOrNull()
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                series.forEach { line -> Legend(line.color, line.label, last?.let { format(line.value(it)) }, line.dash) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Legend(color: Color, label: String, value: String?, dash: FloatArray?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(width = 20.dp, height = 10.dp)) {
+            drawLine(color, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 1.5.dp.toPx(), pathEffect = dash?.let { PathEffect.dashPathEffect(it.map { length -> length.dp.toPx() }.toFloatArray()) })
+        }
+        Text(
+            value?.let { "$label $it" } ?: label,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
+/** One per second for five minutes, as kept by StatusHistory. */
+private const val HISTORY_SAMPLES = 300

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_section_router">Router (i2pd.conf)</string>
+    <string name="router_basic">Basic settings</string>
+    <string name="router_basic_summary">Network, transports, proxies, services</string>
+    <string name="router_advanced">All i2pd options</string>
+    <string name="router_advanced_summary">Configure all supported options in this build</string>
+    <string name="router_raw">Edit i2pd.conf</string>
+    <string name="router_raw_summary">Text editor for experienced users</string>
+    <string name="reseed_file_title" tools:ignore="MissingTranslation">File reseeding</string>
+    <string name="reseed_file_summary" tools:ignore="MissingTranslation">Import a local .su3 or .zip bootstrap file</string>
+    <string name="reseed_file_intro" tools:ignore="MissingTranslation">Choose a local .su3 or .zip reseed file (up to 128 MB). It is copied into app-private storage. i2pd reads it when the router needs bootstrap data; a running router may need to restart.</string>
+    <string name="reseed_file_choose" tools:ignore="MissingTranslation">Choose .su3 or .zip file</string>
+    <string name="reseed_file_current" tools:ignore="MissingTranslation">Current manual reseed (%1$s): %2$s</string>
+    <string name="reseed_file_default" tools:ignore="MissingTranslation">No local file is selected. i2pd will use its configured reseed servers.</string>
+    <string name="reseed_file_trust" tools:ignore="MissingTranslation">i2pd verifies SU3 signatures. Only use ZIP seed archives from sources you trust.</string>
+    <string name="reseed_file_su3" tools:ignore="MissingTranslation">SU3 / URL</string>
+    <string name="reseed_file_zip" tools:ignore="MissingTranslation">ZIP</string>
+    <string name="reseed_file_imported" tools:ignore="MissingTranslation">Selected %1$s as the reseed source. Restart the router if it is already running.</string>
+    <string name="reseed_file_cleared" tools:ignore="MissingTranslation">Local reseed selection cleared. i2pd will use its configured servers at the next bootstrap.</string>
+    <string name="reseed_file_use_servers" tools:ignore="MissingTranslation">Use network servers</string>
+    <string name="reseed_file_failed" tools:ignore="MissingTranslation">Cannot use reseed file: %1$s</string>
+
+    <string name="banner_restart">Configuration changed. Restart the router to apply it.</string>
+    <string name="action_revert_changes">Revert</string>
+
+    <string name="group_network">Network</string>
+    <string name="group_transports">Transports</string>
+    <string name="group_http_proxy">HTTP proxy</string>
+    <string name="group_socks_proxy">SOCKS proxy</string>
+    <string name="group_web_console">Web console</string>
+    <string name="group_sam" translatable="false">SAM</string>
+    <string name="group_bob" translatable="false">BOB</string>
+    <string name="group_i2cp" translatable="false">I2CP</string>
+    <string name="group_logging">Logging</string>
+    <string name="group_limits">Limits and storage</string>
+    <string name="section_general">General</string>
+
+    <string name="opt_port">Router port</string>
+    <string name="opt_ipv4" translatable="false">IPv4</string>
+    <string name="opt_ipv6" translatable="false">IPv6</string>
+    <string name="opt_bandwidth">Bandwidth class</string>
+    <string name="opt_share">Share for transit, %</string>
+    <string name="opt_notransit">Decline transit tunnels at start</string>
+    <string name="opt_floodfill">Floodfill router</string>
+    <string name="opt_ntcp2_enabled" translatable="false">NTCP2</string>
+    <string name="opt_ssu2_enabled" translatable="false">SSU2</string>
+    <string name="opt_upnp_enabled">UPnP port forwarding</string>
+    <string name="opt_enabled">Enabled</string>
+    <string name="opt_address">Address</string>
+    <string name="opt_service_port">Port</string>
+    <string name="opt_outproxy">Outproxy</string>
+    <string name="opt_loglevel">Log level</string>
+    <string name="opt_limits_transittunnels">Maximum transit tunnels</string>
+    <string name="opt_persist_profiles">Keep peer profiles on disk</string>
+
+    <string name="bandwidth_l">L — 32 KB/s</string>
+    <string name="bandwidth_o">O — 256 KB/s</string>
+    <string name="bandwidth_p">P — 2048 KB/s</string>
+    <string name="bandwidth_x">X — unlimited</string>
+    <string name="router_port_auto">auto (9111–30776)</string>
+
+    <string name="value_default">%1$s (default)</string>
+    <string name="value_empty">not set</string>
+    <string name="value_custom">Other value</string>
+    <string name="action_save">Save</string>
+    <string name="action_reset_default">Reset to default</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_comment_out">Comment out</string>
+    <string name="action_save_anyway">Save anyway</string>
+    <string name="action_revert">Revert</string>
+
+    <string name="config_loading">Loading configuration…</string>
+    <string name="config_load_failed">Cannot load configuration: %1$s</string>
+    <string name="config_issues">Problems in i2pd.conf</string>
+    <string name="config_problems_tab">Problems (%1$d)</string>
+    <string name="config_unknown_options">Options unknown to i2pd %1$s: the router will not start with them</string>
+    <string name="config_issues_on_save">The file has problems; i2pd may refuse to start with it.</string>
+
+    <string name="issue_unknown">%1$s: unknown option</string>
+    <string name="issue_duplicate">%1$s: set more than once</string>
+    <string name="issue_port_conflict">Port %1$d is used by %2$s</string>
+    <string name="issue_not_boolean">%1$s = %2$s: expected true or false</string>
+    <string name="issue_not_number">%1$s = %2$s: expected a number</string>
+    <string name="issue_out_of_range">%1$s = %2$s: out of range</string>
+    <string name="issue_not_allowed">%1$s = %2$s: not an allowed value</string>
+    <string name="issue_reserved_port">%1$s = %2$s: port is reserved for other software</string>
+    <string name="issue_outside_range">%1$s = %2$s: outside the recommended range 9111–30776</string>
+
+    <string name="error_not_boolean">Expected true or false</string>
+    <string name="error_not_number">Expected a number</string>
+    <string name="error_out_of_range">Out of range</string>
+    <string name="error_out_of_range_port" translatable="false">1–65535</string>
+    <string name="error_not_allowed">Not an allowed value</string>
+    <string name="warning_title">Check the value</string>
+    <string name="warning_router_port_range">The selected port is outside the recommended range (9111–30776). Save it anyway?</string>
+    <string name="warning_reserved_port">The selected port is reserved for other software. Save it anyway?</string>
+</resources>

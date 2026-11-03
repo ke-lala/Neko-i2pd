@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_status">Статус</string>
+    <string name="tab_logs">Логи</string>
+    <string name="tab_settings">Настройки</string>
+
+    <string name="action_back">Назад</string>
+    <string name="action_web_console">Веб-консоль</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_open_settings">Открыть настройки</string>
+    <string name="action_disable">Отключить</string>
+
+    <string name="banner_battery">Оптимизация батареи может остановить роутер в фоне.</string>
+    <string name="banner_notifications">Уведомления выключены: состояние роутера не показывается.</string>
+
+    <string name="logs_search">Поиск</string>
+    <string name="logs_level_error">Ошибки</string>
+    <string name="logs_level_warn">Предупреждения</string>
+    <string name="logs_level_info">Инфо</string>
+    <string name="logs_level_debug">Отладка</string>
+    <string name="logs_empty">Записей нет. Подробность задаётся параметром loglevel в i2pd.conf.</string>
+    <string name="logs_router_restarted">— роутер перезапущен —</string>
+    <string name="logs_share_subject">Лог i2pd</string>
+
+    <string name="settings_section_start">Запуск</string>
+    <string name="settings_autostart">Запускать при загрузке</string>
+    <string name="settings_autostart_summary">Запускать роутер после включения устройства</string>
+    <string name="settings_auto_restart">Перезапускать после сбоя</string>
+    <string name="settings_auto_restart_summary">До 3 попыток за 10 минут</string>
+    <string name="settings_section_stop">Остановка</string>
+    <string name="settings_graceful_timeout">Таймаут штатной остановки</string>
+    <string name="settings_minutes">%1$d мин</string>
+    <string name="settings_section_background">Работа в фоне</string>
+    <string name="settings_keep_awake">Не давать устройству засыпать</string>
+    <string name="settings_keep_awake_summary">Роутер работает и в глубоком сне, но батарея садится быстрее</string>
+    <string name="settings_keep_awake_off">Нет</string>
+    <string name="settings_keep_awake_always">Всегда</string>
+    <string name="settings_keep_awake_charging">Только при зарядке</string>
+    <string name="settings_battery">Оптимизация батареи</string>
+    <string name="settings_battery_on">Включена: система может остановить роутер</string>
+    <string name="settings_battery_off">Отключена для i2pd</string>
+    <string name="settings_oem_autostart">Автозапуск (%1$s)</string>
+    <string name="settings_oem_autostart_summary">Прошивка %1$s может не запускать роутер при загрузке и закрывать его в фоне. Разрешите там автозапуск для i2pd</string>
+    <string name="settings_section_interface">Интерфейс</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_system">Как в системе</string>
+    <string name="settings_theme_light">Светлая</string>
+    <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_secure_screen">Запретить скриншоты</string>
+    <string name="settings_secure_screen_summary">Адреса, ключи и логи нельзя снять с экрана, в недавних приложениях содержимое скрыто</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="error_with_detail">%1$s (%2$s)</string>
+    <string name="error_no_space">Недостаточно свободного места</string>
+    <string name="error_no_access">Нет доступа к файлу или папке</string>
+    <string name="error_not_found">Файл или папка не найдены</string>
+    <string name="error_network">Не удалось подключиться</string>
+    <string name="error_timeout">Нет ответа вовремя</string>
+    <string name="error_refused">Роутер отклонил запрос</string>
+</resources>

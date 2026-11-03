@@ -1,0 +1,8 @@
+Android upstream: https://github.com/PurpleI2P/i2pd-android
+Android baseline commit: df7e2420b6a5108caa7463bde420d3ab48ff2888
+i2pd latest stable release checked 2026-11-02: 3.0.0, tag commit 137dde2f433b2142eec7a2307608d7d082be086f
+i2pd core commit in this source: 56958857c9f00b1de2cbbe55dd3a853310e608be (one commit ahead of 3.0.0; Android torrents RPC support)
+VPN transport: HevSocks5Tunnel 2.19.3, https://github.com/heiher/hev-socks5-tunnel/releases/tag/2.19.3
+Hev source commit: c5584feca8f6df70ee53eb2879e034b849a3d15a; all git submodules are included in third_party/hev-socks5-tunnel/source
+Hev AAR: locally rebuilt from the pinned 2.19.3 source for Android API 23; SHA-256 dcfc970b924632ef675fc9942f4602dad3f49b83836ca1500ce43f677c782744
+UI: minimalist black and white retained; non-official debug signature
